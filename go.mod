@@ -1,3 +1,3 @@
 module github.com/avinassh/go-caskdb
 
-go 1.19
+go 1.24

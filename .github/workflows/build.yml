@@ -15,6 +15,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod' # This will use the go version from the version from the go.mod file
       - name: tests
         run: |
           make test
