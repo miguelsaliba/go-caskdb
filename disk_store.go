@@ -2,8 +2,11 @@ package caskdb
 
 import (
 	"errors"
+	"io"
 	"io/fs"
+	"log"
 	"os"
+	"time"
 )
 
 // DiskStore is a Log-Structured Hash Table as described in the BitCask paper. We
@@ -47,6 +50,8 @@ import (
 //	   	store.Set("othello", "shakespeare")
 //	   	author := store.Get("othello")
 type DiskStore struct {
+	file *os.File
+	keyStore map[string]KeyEntry
 }
 
 func isFileExists(fileName string) bool {
@@ -58,17 +63,94 @@ func isFileExists(fileName string) bool {
 }
 
 func NewDiskStore(fileName string) (*DiskStore, error) {
-	panic("implement me")
+	ds := &DiskStore{keyStore: make(map[string]KeyEntry)}
+	if isFileExists(fileName) {
+		err := ds.createKeyStore(fileName)
+		if err != nil {
+			log.Fatalln("Error creating keyStore", err)
+		}
+	}
+	var err error
+	ds.file, err = os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalln("Error creating/opening file", err)
+	}
+	return ds, nil
 }
 
 func (d *DiskStore) Get(key string) string {
-	panic("implement me")
+	keyEntry, ok := d.keyStore[key]
+	if !ok {
+		return ""
+	}
+
+	_, err := d.file.Seek(int64(keyEntry.position), io.SeekStart)
+	if err != nil {
+		log.Fatal("Error seeking to value", err)
+	}
+	buf := make([]byte, keyEntry.totalSize)
+	_, err = io.ReadFull(d.file, buf)
+	if err != nil {
+		log.Fatal("Error reading file", err)
+	}
+
+	_, _, value := decodeKV(buf)
+
+	return value
 }
 
 func (d *DiskStore) Set(key string, value string) {
-	panic("implement me")
+	timestamp := uint32(time.Now().Unix())
+	size, bytes := encodeKV(timestamp, key, value)
+	pos, err := d.file.Seek(0, io.SeekCurrent) // Get the current pos in the file
+	if err != nil {
+		log.Fatal("Failed to seek 0 positions, this should never happen", err)
+	}
+	_, err = d.file.Write(bytes)
+	if err != nil {
+		log.Fatal("Failed to write to file", err)
+	}
+	d.keyStore[key] = KeyEntry{timestamp, uint32(pos), uint32(size)}
 }
 
 func (d *DiskStore) Close() bool {
-	panic("implement me")
+	err := d.file.Close()
+	if err != nil {
+		log.Print("Failed to close file", err)
+		return false
+	}
+	return true
+}
+
+func (d *DiskStore) createKeyStore(fileName string) error {
+	file, _ := os.Open(fileName)
+	defer file.Close()
+
+	for {
+		buf := make([]byte, headerSize)
+		pos, _ := file.Seek(0, io.SeekCurrent)
+		// Read header
+		_, err := io.ReadFull(file, buf)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal("Could not read header ", err)
+		}
+		timestamp, keySize, valueSize := decodeHeader(buf)
+		// Read key
+		keyBuf := make([]byte, keySize)
+		_, err = io.ReadFull(file, keyBuf)
+		if err != nil {
+			log.Fatal("Could not read key from file ", err)
+		}
+		// Skip value (not used)
+		_, err = file.Seek(int64(valueSize), io.SeekCurrent)
+		if err != nil && err != io.EOF {
+			log.Fatalln("Could not skip value in file", err)
+		}
+		totalSize := headerSize + keySize + valueSize
+		d.keyStore[string(keyBuf)] = KeyEntry{timestamp, uint32(pos), totalSize}
+	}
+	return nil
 }

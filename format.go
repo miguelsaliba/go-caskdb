@@ -71,7 +71,7 @@ const headerSize = 12
 type KeyEntry struct {
 	timestamp uint32
 	position uint32
-	size uint32
+	totalSize uint32
 }
 
 // Creates a KeyEntry object
@@ -90,8 +90,8 @@ func encodeHeader(timestamp uint32, keySize uint32, valueSize uint32) []byte {
 }
 
 func decodeHeader(header []byte) (uint32, uint32, uint32) {
-	if len(header) < 12 {
-		panic("header size is less than 12")
+	if len(header) != headerSize {
+		panic("header size is not equal to 12")
 	}
 	timestamp := binary.LittleEndian.Uint32(header[0:4])
 	keySize := binary.LittleEndian.Uint32(header[4:8])
@@ -110,7 +110,7 @@ func encodeKV(timestamp uint32, key string, value string) (int, []byte) {
 }
 
 func decodeKV(data []byte) (uint32, string, string) {
-	timestamp, keySize, valueSize := decodeHeader(data[:12])
+	timestamp, keySize, valueSize := decodeHeader(data[:headerSize])
 
 	key := string(data[headerSize:headerSize+keySize])
 	valueOffset := headerSize + keySize
