@@ -62,6 +62,7 @@ func isFileExists(fileName string) bool {
 	return false
 }
 
+// Creates a new disk store, opening an existing one if the file already exists
 func NewDiskStore(fileName string) (*DiskStore, error) {
 	ds := &DiskStore{keyStore: make(map[string]KeyEntry)}
 	if isFileExists(fileName) {
@@ -78,6 +79,7 @@ func NewDiskStore(fileName string) (*DiskStore, error) {
 	return ds, nil
 }
 
+// Gets a value from the store.
 func (d *DiskStore) Get(key string) string {
 	keyEntry, ok := d.keyStore[key]
 	if !ok {
@@ -99,6 +101,7 @@ func (d *DiskStore) Get(key string) string {
 	return value
 }
 
+// Sets a value in the store overwriting the key if it already existed
 func (d *DiskStore) Set(key string, value string) {
 	timestamp := uint32(time.Now().Unix())
 	size, bytes := encodeKV(timestamp, key, value)
@@ -113,6 +116,7 @@ func (d *DiskStore) Set(key string, value string) {
 	d.keyStore[key] = KeyEntry{timestamp, uint32(pos), uint32(size)}
 }
 
+// Closes the file
 func (d *DiskStore) Close() bool {
 	err := d.file.Close()
 	if err != nil {
@@ -122,6 +126,7 @@ func (d *DiskStore) Close() bool {
 	return true
 }
 
+// Creates the key store from an existing file.
 func (d *DiskStore) createKeyStore(fileName string) error {
 	file, _ := os.Open(fileName)
 	defer file.Close()
