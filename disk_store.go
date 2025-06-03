@@ -113,13 +113,20 @@ func (d *DiskStore) Set(key string, value string) {
 	if err != nil {
 		log.Fatal("Failed to write to file", err)
 	}
+	if err := d.file.Sync(); err != nil {
+		log.Fatal("Failed to write to file", err)
+	}
 	d.keyStore[key] = KeyEntry{timestamp, uint32(pos), uint32(size)}
 }
 
 // Closes the file
 func (d *DiskStore) Close() bool {
-	err := d.file.Close()
-	if err != nil {
+	if err := d.file.Sync(); err != nil {
+		log.Print("Failed to close file", err)
+		return false
+	}
+	
+	if err := d.file.Close(); err != nil {
 		log.Print("Failed to close file", err)
 		return false
 	}
